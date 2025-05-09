@@ -1,117 +1,104 @@
-resource "kubernetes_storage_class_v1" "main" {
-  for_each = var.storage_classes
+# Criar classes de armazenamento Kubernetes.
+resource "kubernetes_storage_class_v1" "principal" {
+  for_each = var.storage_class
 
   metadata {
-    name = each.value.name
+    name = each.value.nome
     annotations = merge(
       {
-        "storageclass.kubernetes.io/is-default-class" = each.value.is_default ? "true" : "false"
+        "storageclass.kubernetes.io/is-default-class" = each.value.e_padrao ? "true" : "false"
       },
-      each.value.annotations
+      each.value.anotacoes
     )
-    labels = each.value.labels
+    labels = each.value.etiquetas
   }
 
   storage_provisioner    = "pd.csi.storage.gke.io"
-  reclaim_policy         = each.value.reclaim_policy
-  volume_binding_mode    = each.value.use_module_disk ? "Immediate" : each.value.volume_binding_mode
-  allow_volume_expansion = each.value.allow_volume_expansion
+  reclaim_policy         = each.value.politica_recuperacao
+  volume_binding_mode    = each.value.usar_disco_modulo  == true ? "Immediate" : each.value.modo_vinculacao_volume
+  allow_volume_expansion = each.value.permitir_expansao_volume
 
   parameters = merge(
     {
-      type = each.value.disk_type
+      type = each.value.tipo_disco
     },
-    each.value.parameters
+    each.value.parametros
   )
 }
 
 locals {
-  # Create variables for easier disk reference
-  zonal_disk_name    = length(google_compute_disk.main) > 0 ? one(google_compute_disk.main[*].name) : null
-  regional_disk_name = length(google_compute_region_disk.main) > 0 ? one(google_compute_region_disk.main[*].name) : null
-  
-  # Flag to check if any disk was created
-  disk_created = local.zonal_disk_name != null || local.regional_disk_name != null
-  
-  # Flag to check if it's a zonal or regional disk
-  is_zonal_disk = local.zonal_disk_name != null
-  
-  # Process persistent volumes to determine disk references
-  processed_pvs = {
-    for k, v in var.persistent_volumes : k => {
-      # Auto-link to the created disk if requested
-      use_module_disk = lookup(v, "use_module_disk", false) && local.disk_created
-      
-      # Determine if it's a zonal or regional disk
-      is_zonal_disk = local.is_zonal_disk
-    }
-  }
+  # Criar variáveis para referência de disco mais fácil.
+  nome_disco_zonal    = length(google_compute_disk.principal) > 0 ? one(values(google_compute_disk.principal)[*].name) : null
+  nome_disco_regional = length(google_compute_region_disk.principal) > 0 ? one(values(google_compute_region_disk.principal)[*].name) : null
 }
 
-resource "kubernetes_persistent_volume_v1" "main" {
-  for_each = var.persistent_volumes
+# Criar volumes persistentes Kubernetes.
+resource "kubernetes_persistent_volume_v1" "principal" {
+  for_each = var.persistent_volume
 
   metadata {
-    name        = each.value.name
-    annotations = each.value.annotations
-    labels      = each.value.labels
+    name        = each.value.nome
+    annotations = each.value.anotacoes
+    labels      = each.value.etiquetas
   }
 
   spec {
     capacity = {
-      storage = "${each.value.size_gb}Gi"
+      storage = "${each.value.tamanho_gb}Gi"
     }
 
-    access_modes                     = [each.value.access_mode]
-    storage_class_name               = each.value.storage_class_name
-    persistent_volume_reclaim_policy = each.value.reclaim_policy
-    volume_mode                      = each.value.volume_mode
+    access_modes = [each.value.modo_acesso]
+
+    # Avalia se a Storageclass foi criada no módulo ou se espera receber o valor pela varíavel.
+    storage_class_name               = lookup(each.value, "nome_classe_armazenamento", null) != null ? each.value.nome_classe_armazenamento : length(var.storage_class) > 0 ? kubernetes_storage_class_v1.principal[keys(var.storage_class)[0]].metadata[0].name : null
+    persistent_volume_reclaim_policy = each.value.politica_recuperacao
+    volume_mode                      = each.value.modo_volume
 
     persistent_volume_source {
-      # Conditional for zonal disk
+      # Avalia se foi criado e usa um disco zonal.
       dynamic "gce_persistent_disk" {
-        for_each = local.processed_pvs[each.key].use_module_disk && local.processed_pvs[each.key].is_zonal_disk ? [1] : []
+        for_each = lookup(each.value, "usar_disco_modulo", false) && local.nome_disco_zonal != null ? [1] : []
         content {
-          pd_name   = local.zonal_disk_name
-          fs_type   = each.value.fs_type
-          read_only = each.value.read_only
+          pd_name   = local.nome_disco_zonal
+          fs_type   = each.value.tipo_fs
+          read_only = lookup(each.value, "read_only", false)
         }
       }
 
-      # Conditional for regional disk or dynamic provisioning
+      # Avalia se foi criado e usa um disco regional ou aprovisionamento dinâmico.
       dynamic "csi" {
-        for_each = local.processed_pvs[each.key].use_module_disk && !local.processed_pvs[each.key].is_zonal_disk ? [1] : (!local.processed_pvs[each.key].use_module_disk ? [1] : [])
+        for_each = lookup(each.value, "usar_disco_modulo", false) && local.nome_disco_regional != null ? [1] : (!lookup(each.value, "usar_disco_modulo", false) ? [1] : [])
         content {
-          driver = "pd.csi.storage.gke.io"
-          
-          volume_handle = local.processed_pvs[each.key].use_module_disk && !local.processed_pvs[each.key].is_zonal_disk ? local.regional_disk_name : "dynamic-${each.value.name}"
-          
-          fs_type   = each.value.fs_type
-          read_only = lookup(each.value, "read_only", false)
+          driver        = "pd.csi.storage.gke.io"
+          volume_handle = lookup(each.value, "usar_disco_modulo", false) && local.nome_disco_regional != null ? local.nome_disco_regional : "dynamic-${each.value.name}"
         }
       }
     }
   }
 }
 
-resource "kubernetes_persistent_volume_claim_v1" "main" {
-  for_each = var.persistent_volume_claims
+resource "kubernetes_persistent_volume_claim_v1" "principal" {
+  for_each = var.persistent_volume_claim
 
   metadata {
-    name        = each.value.name
+    name        = each.value.nome
     namespace   = each.value.namespace
-    annotations = each.value.annotations
-    labels      = each.value.labels
+    annotations = each.value.anotacoes
+    labels      = each.value.etiquetas
   }
 
   spec {
-    access_modes       = [each.value.access_mode]
-    storage_class_name = each.value.storage_class_name
-    volume_name        = lookup(each.value, "pv_ref", null) != null ? kubernetes_persistent_volume_v1.main[each.value.pv_ref].metadata[0].name : null
+    access_modes = [each.value.modo_acesso]
+
+    # Avalia se a Storageclass foi criada no módulo ou se espera receber o valor pela varíavel.
+    storage_class_name = lookup(each.value, "nome_classe_armazenamento", null) != null ? each.value.nome_classe_armazenamento : length(var.storage_class) > 0 ? kubernetes_storage_class_v1.principal[keys(var.storage_class)[0]].metadata[0].name : null
+
+    # Avalia se PersistentVolume foi criada no módulo ou se espera receber o valor pela varíavel.
+    volume_name = lookup(each.value, "nome_volume", null) != null ? each.value.nome_volume : length(var.persistent_volume) > 0 ? kubernetes_persistent_volume_v1.principal[keys(var.persistent_volume)[0]].metadata[0].name : null
 
     resources {
       requests = {
-        storage = "${each.value.size_gb}Gi"
+        storage = "${each.value.tamanho_gb}Gi"
       }
     }
   }
