@@ -13,10 +13,9 @@ variable "disco" {
     tamanho_bloco_fisico_bytes = optional(number, 4096)
     tipo_disco                 = optional(string, "pd-standard")
     modo_acesso                = optional(string, "READ_WRITE_SINGLE")
-    localizacao                = optional(string)      # Zona (ex: "europe-west1-b") ou região (ex: "europe-west1").
+    localizacao                = string                # Zona (ex: "europe-west1-b") ou região (ex: "europe-west1").
     zonas_replica              = optional(set(string)) # Obrigatório se a localização for uma região.
   })
-  default = null
 
   validation {
     condition = var.disco == null || contains([
@@ -24,6 +23,11 @@ variable "disco" {
       "hyperdisk-throughput", "hyperdisk-extreme"
     ], var.disco.tipo_disco)
     error_message = "O tipo_disco deve ser um dos seguintes: pd-standard, pd-balanced, pd-ssd, pd-extreme, hyperdisk-balanced, hyperdisk-throughput, hyperdisk-extreme."
+  }
+
+  validation {
+    condition     = var.disco != null && var.disco.localizacao != null && var.disco.localizacao != ""
+    error_message = "A propriedade 'localizacao' da variável 'disco' é obrigatória e não pode estar vazia."
   }
 }
 

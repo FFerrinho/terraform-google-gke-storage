@@ -71,7 +71,7 @@ resource "kubernetes_persistent_volume_v1" "principal" {
         content {
           driver = "pd.csi.storage.gke.io"
           # Utiliza o formato correto para o manipulador de volume para discos regionais ou referências diretas
-          volume_handle = lookup(each.value, "usar_disco_modulo", false) && local.nome_disco_regional != null ? local.nome_disco_regional : each.value.modo_acesso == "ReadWriteMany" ? "projects/${var.id_projeto}/regions/${lookup(each.value, "regiao", "us-central1")}/disks/${each.value.nome}" : "projects/${var.id_projeto}/zones/${lookup(each.value, "zona", var.disco != null ? var.disco.localizacao : "us-central1-a")}/disks/${each.value.nome}"
+          volume_handle = lookup(each.value, "usar_disco_modulo", false) && local.nome_disco_regional != null ? local.nome_disco_regional : each.value.modo_acesso == "ReadWriteMany" ? "projects/${var.id_projeto}/regions/${lookup(each.value, "regiao", var.disco.localizacao)}/disks/${each.value.nome}" : "projects/${var.id_projeto}/zones/${lookup(each.value, "zona", var.disco.localizacao)}/disks/${each.value.nome}"
           # Adiciona atributos de volume apropriados para RWX com PD regional
           volume_attributes = each.value.modo_acesso == "ReadWriteMany" ? {
             "type"             = lookup(each.value, "tipo_disco", "pd-balanced")
