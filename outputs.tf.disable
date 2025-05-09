@@ -1,43 +1,43 @@
 # Disk outputs
 output "zonal_disk" {
   description = "The zonal disk resource (if created)"
-  value       = length(google_compute_disk.main) > 0 ? one(google_compute_disk.main) : null
+  value       = length(google_compute_disk.principal) > 0 ? one(google_compute_disk.principal) : null
 }
 
 output "zonal_disk_id" {
   description = "The ID of the zonal disk (if created)"
-  value       = length(google_compute_disk.main) > 0 ? one(google_compute_disk.main[*].id) : null
+  value       = length(google_compute_disk.principal) > 0 ? one(google_compute_disk.principal[*].id) : null
 }
 
 output "zonal_disk_name" {
   description = "The name of the zonal disk (if created)"
-  value       = length(google_compute_disk.main) > 0 ? one(google_compute_disk.main[*].name) : null
+  value       = length(google_compute_disk.principal) > 0 ? one(google_compute_disk.principal[*].name) : null
 }
 
 output "regional_disk" {
   description = "The regional disk resource (if created)"
-  value       = length(google_compute_region_disk.main) > 0 ? one(google_compute_region_disk.main) : null
+  value       = length(google_compute_region_disk.principal) > 0 ? one(google_compute_region_disk.principal) : null
 }
 
 output "regional_disk_id" {
   description = "The ID of the regional disk (if created)"
-  value       = length(google_compute_region_disk.main) > 0 ? one(google_compute_region_disk.main[*].id) : null
+  value       = length(google_compute_region_disk.principal) > 0 ? one(google_compute_region_disk.principal[*].id) : null
 }
 
 output "regional_disk_name" {
   description = "The name of the regional disk (if created)"
-  value       = length(google_compute_region_disk.main) > 0 ? one(google_compute_region_disk.main[*].name) : null
+  value       = length(google_compute_region_disk.principal) > 0 ? one(google_compute_region_disk.principal[*].name) : null
 }
 
 # Replication outputs
-output "replication_target_disk" {
+output "alvo_replicacao_disk" {
   description = "The replication target disk resource (if created)"
-  value       = length(google_compute_disk.replication_target) > 0 ? one(google_compute_disk.replication_target) : null
+  value       = length(google_compute_disk.alvo_replicacao) > 0 ? one(google_compute_disk.alvo_replicacao) : null
 }
 
-output "replication_target_disk_id" {
+output "alvo_replicacao_disk_id" {
   description = "The ID of the replication target disk (if created)"
-  value       = length(google_compute_disk.replication_target) > 0 ? one(google_compute_disk.replication_target[*].id) : null
+  value       = length(google_compute_disk.alvo_replicacao) > 0 ? one(google_compute_disk.alvo_replicacao[*].id) : null
 }
 
 output "async_replication" {
@@ -58,43 +58,43 @@ output "regional_disk_snapshot_self_link" {
 # Kubernetes resources outputs
 output "storage_classes" {
   description = "The created Kubernetes StorageClass resources"
-  value       = kubernetes_storage_class_v1.main
+  value       = kubernetes_storage_class_v1.principal
 }
 
 output "storage_class_names" {
   description = "The names of the created Kubernetes StorageClass resources"
-  value       = { for k, v in kubernetes_storage_class_v1.main : k => v.metadata[0].name }
+  value       = { for k, v in kubernetes_storage_class_v1.principal : k => v.metadata[0].name }
 }
 
 output "persistent_volumes" {
   description = "The created Kubernetes PersistentVolume resources"
-  value       = kubernetes_persistent_volume_v1.main
+  value       = kubernetes_persistent_volume_v1.principal
 }
 
 output "persistent_volume_names" {
   description = "The names of the created Kubernetes PersistentVolume resources"
-  value       = { for k, v in kubernetes_persistent_volume_v1.main : k => v.metadata[0].name }
+  value       = { for k, v in kubernetes_persistent_volume_v1.principal : k => v.metadata[0].name }
 }
 
 output "persistent_volume_claims" {
   description = "The created Kubernetes PersistentVolumeClaim resources"
-  value       = kubernetes_persistent_volume_claim_v1.main
+  value       = kubernetes_persistent_volume_claim_v1.principal
 }
 
 output "persistent_volume_claim_names" {
   description = "The names of the created Kubernetes PersistentVolumeClaim resources"
-  value       = { for k, v in kubernetes_persistent_volume_claim_v1.main : k => v.metadata[0].name }
+  value       = { for k, v in kubernetes_persistent_volume_claim_v1.principal : k => v.metadata[0].name }
 }
 
 # Combined summary output
 output "resources_summary" {
   description = "Summary of all resources created by this module"
   value = {
-    zonal_disk_created     = length(google_compute_disk.main) > 0
-    regional_disk_created  = length(google_compute_region_disk.main) > 0
+    zonal_disk_created     = length(google_compute_disk.principal) > 0
+    regional_disk_created  = length(google_compute_region_disk.principal) > 0
     replication_configured = length(google_compute_disk_async_replication.replication) > 0 || length(google_compute_snapshot.regional_disk_snapshot) > 0
-    storage_classes        = length(kubernetes_storage_class_v1.main)
-    persistent_volumes     = length(kubernetes_persistent_volume_v1.main)
-    persistent_volume_claims = length(kubernetes_persistent_volume_claim_v1.main)
+    storage_classes        = length(kubernetes_storage_class_v1.principal)
+    persistent_volumes     = length(kubernetes_persistent_volume_v1.principal)
+    persistent_volume_claims = length(kubernetes_persistent_volume_claim_v1.principal)
   }
 }

@@ -15,7 +15,7 @@ resource "kubernetes_storage_class_v1" "principal" {
 
   storage_provisioner    = "pd.csi.storage.gke.io"
   reclaim_policy         = each.value.politica_recuperacao
-  volume_binding_mode    = each.value.usar_disco_modulo  == true ? "Immediate" : each.value.modo_vinculacao_volume
+  volume_binding_mode    = each.value.usar_disco_modulo == true ? "Immediate" : each.value.modo_vinculacao_volume
   allow_volume_expansion = each.value.permitir_expansao_volume
 
   parameters = merge(
@@ -69,8 +69,15 @@ resource "kubernetes_persistent_volume_v1" "principal" {
       dynamic "csi" {
         for_each = lookup(each.value, "usar_disco_modulo", false) && local.nome_disco_regional != null ? [1] : (!lookup(each.value, "usar_disco_modulo", false) ? [1] : [])
         content {
-          driver        = "pd.csi.storage.gke.io"
-          volume_handle = lookup(each.value, "usar_disco_modulo", false) && local.nome_disco_regional != null ? local.nome_disco_regional : "dynamic-${each.value.name}"
+          driver = "pd.csi.storage.gke.io"
+
+          # Use correct volume handle format for regional disks or direct disk references
+          volume_handle = lookup(each.value, "usar_disco_modulo", false) && local.nome_disco_regional != null ? local.nome_disco_regional : ach.value.modo_acesso == "ReadWriteMany" ? "projects/${var.id_projeto}/regions/${lookup(each.value, "regiao", "us-central1")}/disks/${each.value.nome}" : "projects/${var.id_projeto}/zones/${lookup(each.value, "zona", "us-central1-a")}/disks/${each.value.nome}"
+          # Add appropriate volume attributes for RWX with regional PD
+          volume_attributes = each.value.modo_acesso == "ReadWriteMany" ? {
+            "type"             = lookup(each.value, "tipo_disco", "pd-balanced")
+            "replication-type" = "regional-pd"
+          } : {}
         }
       }
     }
