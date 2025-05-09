@@ -1,105 +1,105 @@
-variable "project_id" {
-  description = "Project ID where resources will be created."
+variable "id_projeto" {
+  description = "ID do projeto onde os recursos serão criados."
   type        = string
 }
 
-variable "disk" {
-  description = "Configuration for the persistent disk to be created in the module."
+variable "disco" {
+  description = "Configuração para o disco persistente a ser criado no módulo."
   type = object({
-    name                      = string
-    description               = optional(string)
-    labels                    = optional(map(string), {})
-    size_gb                   = optional(number, 10) 
-    physical_block_size_bytes = optional(number, 4096)
-    disk_type                 = optional(string, "pd-standard")
-    access_mode               = optional(string, "READ_WRITE_SINGLE")
-    location                  = string  # Zone (e.g., "europe-west1-b") or region (e.g., "europe-west1")
-    replica_zones             = optional(set(string)) # Required if location is a region
+    nome                       = optional(string)
+    descricao                  = optional(string)
+    etiquetas                  = optional(map(string), {})
+    tamanho_gb                 = optional(number, 10)
+    tamanho_bloco_fisico_bytes = optional(number, 4096)
+    tipo_disco                 = optional(string, "pd-standard")
+    modo_acesso                = optional(string, "READ_WRITE_SINGLE")
+    localizacao                = optional(string)      # Zona (ex: "europe-west1-b") ou região (ex: "europe-west1").
+    zonas_replica              = optional(set(string)) # Obrigatório se a localização for uma região.
   })
   default = null
 
   validation {
-    condition = var.disk == null || contains([
-      "pd-standard", "pd-balanced", "pd-ssd", "pd-extreme", "hyperdisk-balanced", 
+    condition = var.disco == null || contains([
+      "pd-standard", "pd-balanced", "pd-ssd", "pd-extreme", "hyperdisk-balanced",
       "hyperdisk-throughput", "hyperdisk-extreme"
-    ], var.disk.disk_type)
-    error_message = "The disk_type must be one of: pd-standard, pd-balanced, pd-ssd, pd-extreme, hyperdisk-balanced, hyperdisk-throughput, hyperdisk-extreme."
+    ], var.disco.tipo_disco)
+    error_message = "O tipo_disco deve ser um dos seguintes: pd-standard, pd-balanced, pd-ssd, pd-extreme, hyperdisk-balanced, hyperdisk-throughput, hyperdisk-extreme."
   }
 }
 
-variable "replication_target" {
-  description = "Configuration for the replication target location in another region."
+variable "alvo_replicacao" {
+  description = "Configuração para a localização do alvo de replicação em outra região."
   type = object({
-    location = string  # Must be a zone in a different region
+    localizacao = string # Deve ser uma zona em uma região diferente.
   })
   default = null
 }
 
-variable "enable_regional_disk_replication" {
-  description = "Whether to enable replication of regional disks using snapshot/restore method."
+variable "ativar_replicacao_disco_regional" {
+  description = "Indica se deve ser ativada a replicação de discos regionais usando o método de snapshot/restauração."
   type        = bool
   default     = false
 }
 
-variable "storage_classes" {
-  description = "Configuration for Kubernetes StorageClasses."
+variable "storage_class" {
+  description = "Configuração para as classes de armazenamento do Kubernetes."
   type = map(object({
-    name                   = string
-    is_default             = optional(bool, false)
-    annotations            = optional(map(string), {})
-    labels                 = optional(map(string), {})
-    reclaim_policy         = optional(string, "Delete")
-    volume_binding_mode    = optional(string, "WaitForFirstConsumer")
-    allow_volume_expansion = optional(bool, true)
-    disk_type              = optional(string, "pd-standard")
-    parameters             = optional(map(string), {})
-    use_module_disk        = optional(bool, false) # Set to true to use the disk created by this module
+    nome                     = string
+    e_padrao                 = optional(bool, false)
+    anotacoes                = optional(map(string), {})
+    etiquetas                = optional(map(string), {})
+    politica_recuperacao     = optional(string, "Delete")
+    modo_vinculacao_volume   = optional(string, "WaitForFirstConsumer")
+    permitir_expansao_volume = optional(bool, true)
+    tipo_disco               = optional(string, "pd-standard")
+    parametros               = optional(map(string), {})
+    usar_disco_modulo        = optional(bool, false) # Definir como true para usar o disco criado por este módulo.
   }))
   default = {}
 
   validation {
     condition = length([
-      for k, v in var.storage_classes : 
+      for k, v in var.storage_class :
       v if !contains([
-        "pd-standard", "pd-balanced", "pd-ssd", "pd-extreme", "hyperdisk-balanced", 
+        "pd-standard", "pd-balanced", "pd-ssd", "pd-extreme", "hyperdisk-balanced",
         "hyperdisk-throughput", "hyperdisk-extreme"
-      ], v.disk_type)
+      ], v.tipo_disco)
     ]) == 0
-    error_message = "All storage classes must have a valid disk_type: pd-standard, pd-balanced, pd-ssd, pd-extreme, hyperdisk-balanced, hyperdisk-throughput, hyperdisk-extreme."
+    error_message = "Todas as classes de armazenamento devem ter um tipo_disco válido: pd-standard, pd-balanced, pd-ssd, pd-extreme, hyperdisk-balanced, hyperdisk-throughput, hyperdisk-extreme."
   }
 }
 
-variable "persistent_volumes" {
-  description = "Configuration for Kubernetes PersistentVolumes."
+variable "persistent_volume" {
+  description = "Configuração para os volumes persistentes do Kubernetes."
   type = map(object({
-    name               = string
-    annotations        = optional(map(string), {})
-    labels             = optional(map(string), {})
-    size_gb            = number
-    access_mode        = optional(string, "ReadWriteOnce")
-    storage_class_name = string
-    reclaim_policy     = optional(string, "Retain")
-    volume_mode        = optional(string, "Filesystem")
-    use_module_disk    = optional(bool, false)  # Set to true to use the disk created by this module
-    disk_ref           = optional(string)       # Only needed for referencing external disks
-    disk_name          = optional(string)       # Only needed for referencing external disks by name
-    fs_type            = optional(string, "ext4")
-    read_only          = optional(bool, false)
+    nome                      = string
+    anotacoes                 = optional(map(string), {})
+    etiquetas                 = optional(map(string), {})
+    tamanho_gb                = number
+    modo_acesso               = optional(string, "ReadWriteOnce")
+    nome_classe_armazenamento = optional(string)
+    politica_recuperacao      = optional(string, "Retain")
+    modo_volume               = optional(string, "Filesystem")
+    usar_disco_modulo         = optional(bool, false) # Definir como true para usar o disco criado por este módulo.
+    ref_disco                 = optional(string)      # Apenas necessário para referenciar discos externos.
+    nome_disco                = optional(string)      # Apenas necessário para referenciar discos externos por nome.
+    tipo_fs                   = optional(string, "ext4")
+    somente_leitura           = optional(bool, false)
   }))
   default = {}
 }
 
-variable "persistent_volume_claims" {
-  description = "Configuration for Kubernetes PersistentVolumeClaims."
+variable "persistent_volume_claim" {
+  description = "Configuração para as reivindicações de volume persistente do Kubernetes."
   type = map(object({
-    name               = string
-    namespace          = string
-    annotations        = optional(map(string), {})
-    labels             = optional(map(string), {})
-    access_mode        = optional(string, "ReadWriteOnce")
-    storage_class_name = string
-    pv_ref             = optional(string) # Optional to allow dynamic provisioning
-    size_gb            = number
+    nome                      = string
+    namespace                 = string
+    anotacoes                 = optional(map(string), {})
+    etiquetas                 = optional(map(string), {})
+    modo_acesso               = optional(string, "ReadWriteOnce")
+    nome_classe_armazenamento = optional(string)
+    nome_volume                    = optional(string) # Referencia uma chave em persistent_volume.
+    tamanho_gb                = number
   }))
   default = {}
 }
