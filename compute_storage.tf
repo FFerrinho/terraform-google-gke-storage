@@ -1,79 +1,79 @@
-# Zonal persistent disk 
-resource "google_compute_disk" "main" {
-  for_each = var.disk != null && can(regex("^[a-z]+-[a-z]+-[a-z]$", var.disk.location)) ? { (var.disk.name) = var.disk } : {}
+# Disco persistente zonal.
+resource "google_compute_disk" "principal" {
+  for_each = var.disco.nome != null && can(regex(".*-[a-z]$", var.disco.localizacao)) ? { (var.disco.nome) = var.disco } : {}
 
-  name                      = "${each.value.name}-${replace(each.value.location, "/", "-")}"
-  description               = each.value.description
-  labels                    = each.value.labels
-  size                      = each.value.size_gb
-  physical_block_size_bytes = each.value.physical_block_size_bytes
-  type                      = each.value.disk_type
-  access_mode               = each.value.access_mode
-  project                   = var.project_id
-  zone                      = each.value.location
+  name                      = "${each.value.nome}-${replace(each.value.localizacao, "/", "-")}"
+  description               = each.value.descricao
+  labels                    = each.value.etiquetas
+  size                      = each.value.tamanho_gb
+  physical_block_size_bytes = each.value.tamanho_bloco_fisico_bytes
+  type                      = each.value.tipo_disco
+  access_mode               = each.value.modo_acesso
+  project                   = var.id_projeto
+  zone                      = each.value.localizacao
 }
 
-# Regional persistent disk with zone-level redundancy
-resource "google_compute_region_disk" "main" {
-  for_each = var.disk != null && can(regex("^[a-z]+-[a-z]+$", var.disk.location)) ? { (var.disk.name) = var.disk } : {}
+# Disco persistente regional com redundância a nível de zona.
+resource "google_compute_region_disk" "principal" {
+  for_each = var.disco.nome != null && !can(regex(".*-[a-z]$", var.disco.localizacao)) ? { (var.disco.nome) = var.disco } : {}
 
-  name                      = "${each.value.name}-${each.value.location}"
-  description               = each.value.description
-  labels                    = each.value.labels
-  size                      = each.value.size_gb
-  physical_block_size_bytes = each.value.physical_block_size_bytes
-  type                      = each.value.disk_type
-  project                   = var.project_id
-  region                    = each.value.location
-  replica_zones             = each.value.replica_zones
+  name                      = "${each.value.nome}-${each.value.localizacao}"
+  description               = each.value.descricao
+  labels                    = each.value.etiquetas
+  size                      = each.value.tamanho_gb
+  physical_block_size_bytes = each.value.tamanho_bloco_fisico_bytes
+  type                      = each.value.tipo_disco
+  project                   = var.id_projeto
+  region                    = each.value.localizacao
+  replica_zones             = each.value.zonas_replica
 
   lifecycle {
     precondition {
-      condition     = each.value.replica_zones != null && length(each.value.replica_zones) > 0
-      error_message = "Regional disk must have replica_zones specified. Please provide at least two zones in the region."
+      condition     = each.value.zonas_replica != null && length(each.value.zonas_replica) > 0
+      error_message = "O disco regional deve ter zonas de réplica especificadas. Por favor, indique pelo menos duas zonas na região."
     }
   }
 }
 
-# Secondary disk for cross-region replication
-resource "google_compute_disk" "replication_target" {
-  for_each = var.replication_target != null && length(google_compute_disk.main) > 0 ? { (var.disk.name) = var.disk } : {}
+# Disco secundário para replicação entre regiões.
+resource "google_compute_disk" "alvo_replicacao" {
+  for_each = var.alvo_replicacao != null && length(google_compute_disk.principal) > 0 ? { (var.disco.nome) = var.disco } : {}
 
-  name                      = "${var.disk.name}-replica-${replace(var.replication_target.location, "/", "-")}"
-  description               = var.disk.description
-  labels                    = var.disk.labels
-  size                      = var.disk.size_gb
-  physical_block_size_bytes = var.disk.physical_block_size_bytes
-  type                      = var.disk.disk_type
-  access_mode               = var.disk.access_mode
-  project                   = var.project_id
-  zone                      = var.replication_target.location
+  name                      = "${var.disco.nome}-replica-${replace(var.alvo_replicacao.localizacao, "/", "-")}"
+  description               = var.disco.descricao
+  labels                    = var.disco.etiquetas
+  size                      = var.disco.tamanho_gb
+  physical_block_size_bytes = var.disco.tamanho_bloco_fisico_bytes
+  type                      = var.disco.tipo_disco
+  access_mode               = var.disco.modo_acesso
+  project                   = var.id_projeto
+  zone                      = var.alvo_replicacao.localizacao
 
   lifecycle {
     precondition {
-      condition     = substr(var.replication_target.location, 0, length(var.replication_target.location) - 2) != substr(var.disk.location, 0, length(var.disk.location) - 2)
-      error_message = "Replication target must be in a different region than the source disk."
+      condition     = substr(var.alvo_replicacao.localizacao, 0, length(var.alvo_replicacao.localizacao) - 2) != substr(var.disco.localizacao, 0, length(var.disco.localizacao) - 2)
+      error_message = "O alvo de replicação deve estar numa região diferente do disco de origem."
     }
   }
 }
 
-# Async replication between the primary and secondary disk
-resource "google_compute_disk_async_replication" "replication" {
-  for_each = var.replication_target != null && length(google_compute_disk.main) > 0 ? { ("${var.disk.name}-to-${var.replication_target.location}") = true } : {}
+# Replicação assíncrona entre o disco primário e secundário.
+resource "google_compute_disk_async_replication" "replicacao" {
+  for_each = var.alvo_replicacao != null && length(google_compute_disk.principal) > 0 ? { ("${var.disco.nome}-para-${var.alvo_replicacao.localizacao}") = true } : {}
 
-  primary_disk = one(google_compute_disk.main[*].id)
+  primary_disk = one(google_compute_disk.principal[*].id)
   secondary_disk {
-    disk = one(google_compute_disk.replication_target[*].id)
+    disk = one(google_compute_disk.alvo_replicacao[*].id)
   }
 }
 
-# Snapshot for regional disk disaster recovery
-resource "google_compute_snapshot" "regional_disk_snapshot" {
-  for_each = var.replication_target != null && length(google_compute_region_disk.main) > 0 && var.enable_regional_disk_replication ? { ("${var.disk.name}-snapshot") = true } : {}
+# Snapshot para recuperação de desastres do disco regional.
+resource "google_compute_snapshot" "snapshot_disco_regional" {
+  for_each = var.alvo_replicacao != null && length(google_compute_region_disk.principal) > 0 && var.ativar_replicacao_disco_regional ? { ("${var.disco.nome}-snapshot") = true } : {}
 
-  name              = "${var.disk.name}-${var.disk.location}-snapshot"
-  source_disk       = one(google_compute_region_disk.main[*].self_link)
-  zone              = one(var.disk.replica_zones) # Use one() to get an element from the set
-  description       = "Snapshot of ${var.disk.name} regional disk for disaster recovery"
-  storage_locations = [substr(var.replication_target.location, 0, length(var.replication_target.location) - 2)]
+  name              = "${var.disco.nome}-${var.disco.localizacao}-snapshot"
+  source_disk       = one(google_compute_region_disk.principal[*].self_link)
+  zone              = one(var.disco.zonas_replica)
+  description       = "Snapshot do disco regional ${var.disco.nome}."
+  storage_locations = [substr(var.alvo_replicacao.localizacao, 0, length(var.alvo_replicacao.localizacao) - 2)]
 }
